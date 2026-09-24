@@ -1,0 +1,15 @@
+.git
+.venv
+.pytest_cache
+.mypy_cache
+.import_linter_cache
+__pycache__
+*.pyc
+.coverage
+htmlcov
+tests
+scripts
+terraform
+.github
+*.md
+!README.md
