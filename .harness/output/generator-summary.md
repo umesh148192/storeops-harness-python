@@ -1,30 +1,30 @@
-# Generator Summary — sprint-2.3
+# Generator Summary — sprint-3.3
 
 ## Sprint
-sprint-2.3 — `alerts`: notify Department Lead on `SLA_BREACH` (assignee fallback) and Store Manager on `SLA_ESCALATION` (no-op fallback), resolved read-only via `programmes.service`.
+sprint-3.3 — `reports` route: `GET /api/reports/region/{region_id}` calling sprint-3.2's `generate_regional_rollup`, and wiring the `reports` router into `main.py` for the first time.
 
 ## AC self-check
 
 | AC | Description | Test | Result |
 |----|---|---|---|
-| AC1 | `SLA_BREACH` notifies the resolved Department Lead when resolvable | `test_sla_breach_notifies_department_lead_when_resolvable` | PASS |
-| AC2 | `SLA_BREACH` falls back to the assignee when no Department Lead is resolvable | `test_sla_breach_falls_back_to_assignee_when_no_department_lead_resolvable` (plus pre-existing `test_sla_breach_event_creates_notification_for_assignee`, `test_sla_breach_event_without_assignee_is_ignored`) | PASS |
-| AC3 | `SLA_ESCALATION` notifies the resolved Store Manager when resolvable | `test_sla_escalation_notifies_store_manager_when_resolvable` | PASS |
-| AC4 | `SLA_ESCALATION` is a no-op (no exception propagates) when no Store Manager is resolvable | `test_sla_escalation_is_noop_when_no_store_manager_resolvable`, `test_sla_escalation_is_noop_when_programme_missing` | PASS |
+| AC1 | `GET /api/reports/region/{region_id}` returns 200 with the `Report` shape for a region with stores/tasks | `test_get_regional_rollup_returns_200_with_report_shape` | PASS |
+| AC2 | Region with no seeded stores returns the `AppError`-mapped 404 JSON, not an unhandled 500 | `test_get_regional_rollup_missing_region_returns_404_app_error_json` | PASS |
+| AC3 | The `reports` router's routes are registered in the app after wiring | `test_reports_router_is_wired_into_app` | PASS |
 
 ## Files changed
 
-- **Service**: `src/storeops/alerts/service.py` — `_on_sla_breach` now resolves the recipient via `programmes_service.list_department_leads(programme_id)` (first match, deterministic), falling back to `payload["assignee_id"]` when unresolvable (missing `programme_id`, `NotFoundError`, or empty list); added `_on_sla_escalation` handler resolving via `programmes_service.list_store_managers(programme_id)` with a silent no-op fallback (uses the existing `AlertType.ESCALATION` enum member — no new type needed); both `_resolve_department_lead`/`_resolve_store_manager` helpers catch `NotFoundError` explicitly (Rule 3); registered `EventName.SLA_ESCALATION` in `register_event_handlers`. Reads `programmes.service` directly (a same-process read, not a repository import — Rule 1/Rule 2 compliant).
-- **Tests**: `tests/storeops/alerts/test_service.py` — added 6 new tests covering AC1-AC4 (department-lead resolution, assignee fallback, store-manager resolution, no-op on missing member and on missing programme); 3 pre-existing tests kept unchanged and still pass.
+- **Routes**: `src/storeops/reports/routes.py` — added `GET /region/{region_id}` calling `service.generate_regional_rollup(region_id)` directly, no business logic in the route (Rule 4); removed the stale "not wired in" comment since this sprint explicitly wires it in.
+- **Main**: `src/storeops/main.py` — imported `router as reports_router` from `storeops.reports` (same pattern as the other three routers) and added `app.include_router(reports_router)`; left the pre-existing `reports_service.register_event_handlers(event_bus)` call untouched (it already ran regardless of router wiring).
+- **Tests**: `tests/storeops/reports/test_routes.py` (new file — none existed before, since the router had no routes) — 3 tests covering AC1-AC3, using the existing `client` fixture from `conftest.py`.
 
 ## Known gaps
 
-None. All 4 ACs are covered by citable tests. No new `alerts` route or event-bus retry logic was added (contract non-goals). `AlertType.ESCALATION` already existed in `alerts/types.py` prior to this sprint, so no type change was required there — used as-is for escalation notifications.
+None functionally — all 3 ACs are covered by citable tests. One self-caught test-authoring issue: the initial AC3 smoke test read `route.path` off every entry in `app.routes`, which raised `AttributeError` because this FastAPI/Starlette version wraps included routers in an object without a `.path` attribute; fixed by asserting against `app.openapi()["paths"]` instead, which is the stable, documented way to confirm a path is registered.
 
 ## Local check results (run before handoff)
 
-- `uv run mypy src` — Success, no issues found in 32 source files.
+- `uv run mypy src` — Success, no issues found in 33 source files.
 - `uv run pylint src` — 10.00/10.
 - `uv run lint-imports` — 7 contracts kept, 0 broken.
-- `uv run pytest` — 77 passed.
-- `uv run python scripts/check_coverage.py` — service 94.6% (≥80%), routes 100% (≥70%), shared 97.1% (≥60%), overall 97.6% (≥70%); `alerts/service.py` itself at 91%.
+- `uv run pytest` — 90 passed.
+- `uv run python scripts/check_coverage.py` — service 95.1% (≥80%), routes 100% (≥70%, `reports/routes.py` itself at 100%), shared 97.3% (≥60%), overall 97.8% (≥70%).

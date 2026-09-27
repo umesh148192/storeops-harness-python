@@ -27,3 +27,7 @@ def test_multiple_handlers_all_receive_the_event():
     bus.emit(EventName.SLA_BREACH, None)
 
     assert calls == ["first", "second"]
+
+
+def test_regional_rollup_generated_event_name_value():
+    assert EventName.REGIONAL_ROLLUP_GENERATED == "REGIONAL_ROLLUP_GENERATED"

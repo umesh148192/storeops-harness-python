@@ -7,6 +7,7 @@ from storeops.activities import router as activities_router
 from storeops.alerts import router as alerts_router
 from storeops.alerts.service import service as alerts_service
 from storeops.programmes import router as programmes_router
+from storeops.reports import router as reports_router
 from storeops.reports.service import service as reports_service
 from storeops.shared.errors import AppError
 from storeops.shared.events import event_bus
@@ -29,10 +30,11 @@ async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-# Only activities/programmes/alerts are live in this phase.
+# activities/programmes/alerts/reports are all live in this phase.
 app.include_router(activities_router)
 app.include_router(programmes_router)
 app.include_router(alerts_router)
+app.include_router(reports_router)
 
 # Cross-module side effects are wired here via the event bus, never through
 # direct service-to-service imports from activities/programmes.
