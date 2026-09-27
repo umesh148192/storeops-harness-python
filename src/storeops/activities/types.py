@@ -38,6 +38,7 @@ class Task(BaseModel):
     programme_id: str | None = None
     assignee_id: str | None = None
     due_date: datetime | None = None
+    department: str | None = None
 
 
 class TaskCreate(BaseModel):
@@ -48,6 +49,7 @@ class TaskCreate(BaseModel):
     programme_id: str | None = None
     assignee_id: str | None = None
     due_date: datetime | None = None
+    department: str | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -56,6 +58,7 @@ class TaskUpdate(BaseModel):
     category: TaskCategory | None = None
     assignee_id: str | None = None
     due_date: datetime | None = None
+    department: str | None = None
 
 
 class BulkStatusUpdateItem(BaseModel):

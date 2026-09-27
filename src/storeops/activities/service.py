@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from uuid import uuid4
 
 from storeops.activities.repository import ActivityRepository, repository
@@ -21,7 +22,7 @@ from storeops.programmes.service import service as programmes_service
 from storeops.shared.deps import UserContext
 from storeops.shared.entities import StaffRole
 from storeops.shared.errors import AppError, ForbiddenError, NotFoundError, ValidationError
-from storeops.shared.events import EventName, event_bus
+from storeops.shared.events import EventBus, EventName, event_bus
 
 DEFAULT_SLA_GRACE_PERIOD_HOURS = 24
 
@@ -31,6 +32,18 @@ _SLA_ELIGIBLE_PRIORITIES = (TaskPriority.HIGH, TaskPriority.CRITICAL)
 class ActivityService:
     def __init__(self, repo: ActivityRepository) -> None:
         self._repo = repo
+
+    def register_event_handlers(self, bus: EventBus) -> None:
+        bus.subscribe(
+            EventName.PLANOGRAM_TEMPLATE_CLONE_REQUESTED,
+            self._on_planogram_template_clone_requested,
+        )
+
+    def _on_planogram_template_clone_requested(self, payload: Any) -> None:
+        if not payload:
+            return
+        for item in payload.get("tasks", []):
+            self.create_activity(TaskCreate(**item))
 
     def list_activities(
         self, programme_id: str | None = None, status: TaskStatus | None = None

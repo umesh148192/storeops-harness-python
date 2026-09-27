@@ -1,58 +1,51 @@
 STATUS: AWAITING APPROVAL
 
-Feature: **"Add regional rollup report"** — `GET /api/reports/region/{region_id}` aggregating task
-completion counts, overdue counts by `TaskCategory`, and blocked-task lists across every store in
-a region, with report generation announced on the event bus. Three sprints, ordered by dependency
-(a module other sprints read from is built first, per Rule 1):
+Feature: **"Add planogram task template"** — `POST /api/programmes/{project_id}/templates` clones a
+standard, fixed set of `PLANOGRAM` tasks into a new (or existing) store programme, applying a
+department assignment and a default priority to each cloned task from the template definition. Two
+sprints, ordered by dependency (a module other sprints depend on is built first, per Rule 1):
 
-**sprint-3.1** — foundations: add a minimal in-memory store directory (`shared/stores.py`) that
-can list `Store` records by region — this does not exist anywhere in the codebase today, only a
-single hardcoded store — plus the `Report` schema/event additions the later sprints need
-(`blocked_tasks` field, `store_id` loosened + new `region` field so a report can describe a region
-instead of one store, and a new `REGIONAL_ROLLUP_GENERATED` event name).
+**sprint-4.1** — `activities`: add a `department: str | None` field to `Task`/`TaskCreate`/
+`TaskUpdate`. This does not exist anywhere in the codebase today (no `Department` entity, only the
+`DEPARTMENT_LEAD` staff *role*) and is the prerequisite the template-cloning sprint needs to stamp
+a department onto each cloned task.
 
-**sprint-3.2** — `reports` service: add `generate_regional_rollup(region)`, a read-only aggregation
-across every store in the region (via `shared.stores`, `programmes.service`, `activities.service`)
-that builds completion/overdue-by-category counts and the blocked-task list, persists the `Report`,
-and emits `REGIONAL_ROLLUP_GENERATED` on the event bus.
-
-**sprint-3.3** — `reports` route: add `GET /api/reports/region/{region_id}` and wire the `reports`
-router into `main.py` for the first time (see note below).
+**sprint-4.2** — `programmes`: add a fixed `PLANOGRAM` task template definition and the
+`POST /api/programmes/{project_id}/templates` route/service method that clones it into the target
+programme's tasks via `activities.service.create_activity`, applying each template item's
+department and priority.
 
 ## Decisions flagged for review before approval
 
-1. **New store directory required.** `Store` (in `shared/entities.py`) has a `region` field, but
-   the only `Store` instance anywhere in the app is the single hardcoded one in
-   `shared/deps.py::get_current_store`. There is no way today to answer "which stores are in
-   region X." Sprint-3.1 adds a small seeded lookup (`shared/stores.py`, same
-   hardcoded-seed-data pattern already used for `staff`'s one seeded user and
-   `shared/deps.py`'s one fake store) rather than inventing a full `stores` domain module with its
-   own routes/repository — this is scoped strictly to what the rollup needs. `shared/deps.py`
-   itself is left untouched.
-2. **`Report.store_id` becomes optional, plus a new `region` field.** `Report.store_id: str` is
-   currently required and models "this report is about one store" — true for `STORE_SUMMARY` but
-   not for `REGIONAL_ROLLUP`. Sprint-3.1 changes it to `store_id: str | None = None` and adds
-   `region: str | None = None`; existing `STORE_SUMMARY` generation is unaffected (still always
-   passes `store_id`).
-3. **Task lists, not just counts.** The request asks for "completion rates," "overdue counts by
-   category" (both expressed as raw counts in `Report.data: dict[str, int]`, consistent with
-   `generate_store_summary`'s existing convention of counts over pre-computed percentages — a rate
-   is `completed_tasks / total_tasks`), and "blocked task lists" — that last one needs an actual
-   list, so `Report` gets a new `blocked_tasks: list[Task]` field (full task records, not just IDs)
-   rather than trying to force it into the existing `dict[str, int]` shape.
-4. **"Overdue" uses `due_date`, not the `BLOCKED` status.** `generate_store_summary`'s existing
-   `overdue_tasks` metric is actually `status == BLOCKED` as a stand-in, predating the `due_date`
-   field added in the SLA-alerting feature. The new rollup instead uses the real definition
-   (`due_date` in the past and `status != DONE`), matching `activities.service.evaluate_sla`'s
-   logic — a small intentional inconsistency with the older `STORE_SUMMARY` metric, called out
-   here rather than silently diverging.
-5. **Wiring the `reports` router into `main.py`.** `app-context.md` currently states the `reports`
-   router is deliberately not included ("a deferred demonstration feature... don't fix this by
-   wiring them in unless a sprint contract explicitly asks for it"). This request explicitly asks
-   for a live `reports` endpoint, so sprint-3.3 does wire it in — flagged here since it changes a
-   documented piece of current state, not because it's being done quietly.
-6. **What "triggers ... via the event bus" means.** No sprint asks `alerts` (or any other module)
-   to subscribe to the new event — only that generating a regional rollup report emits
-   `REGIONAL_ROLLUP_GENERATED` (payload: `region`, `report_id`) as an extensibility hook, mirroring
-   how `evaluate_sla` emits its events after computing results. Adding a subscriber would be new
-   scope not requested here.
+1. **New `department` field, not a new `Department` module.** The request says "applying
+   department assignments," but nothing in the codebase models a department as a first-class
+   entity — `StaffRole.DEPARTMENT_LEAD` is a role, not a department name/id. Sprint-4.1 adds a
+   free-form `department: str | None = None` to `Task` (and the create/update schemas), the same
+   minimal-scope pattern used for `due_date` in the earlier SLA feature, rather than inventing a
+   `Department` domain module with its own routes/repository — that is far more than this request
+   asks for.
+2. **The template definition is a fixed, hardcoded list, not a manageable resource.** The request
+   asks to clone "a standard set" of tasks — it does not ask for a way to create/edit/list
+   templates via the API. Sprint-4.2 defines the standard `PLANOGRAM` task set (title, department,
+   priority per item) as a constant inside `programmes/service.py`. No new repository storage, no
+   template CRUD endpoints, no persistence of the template itself — only the *cloning* is exposed.
+3. **Cloning is additive, not idempotent.** Calling the endpoint twice for the same programme
+   produces two independent full sets of cloned tasks (distinct ids each time). The request does
+   not ask for de-duplication or "only clone if not already applied," so no such guard is added —
+   called out explicitly so it isn't mistaken for an oversight.
+4. **First direct `programmes` → `activities.service` *write* call.** Every existing cross-module
+   service call in the codebase today is either a read (e.g. `activities/service.py` calling
+   `programmes_service.get_programme`) or a side effect fired through the event bus (Rule 2). This
+   feature is neither: the endpoint must synchronously return the newly created `Task` records in
+   its response, which the fire-and-forget event bus (`EventBus.emit` returns nothing) cannot do.
+   Sprint-4.2 therefore has `programmes/service.py` call `activities.service.create_activity(...)`
+   directly for each template item. This is structurally permitted — the import-linter "no
+   direct side-effect imports" contract only forbids `activities`/`programmes` importing
+   `alerts.service`/`reports.service`, not each other — and Rule 1 (module boundary) is satisfied
+   because it's a service-to-service call, never `activities.repository`. Flagging this because
+   it's a new direction of direct write call that hasn't occurred before in this codebase, so the
+   Evaluator should confirm it reads as intentional, not a boundary violation.
+5. **Response shape reuses the existing `Task` schema.** `POST /api/programmes/{project_id}/templates`
+   returns `list[Task]` (imported from `activities.types`, the same cross-module type-import
+   pattern `reports/types.py` already uses for `Report.blocked_tasks: list[Task]`) — no new
+   wrapper/response type is introduced for this sprint.

@@ -33,3 +33,22 @@ def test_add_member_unknown_user_returns_404(client):
     )
 
     assert response.status_code == 404
+
+
+def test_clone_template_route_returns_201_with_planogram_tasks(client):
+    project = client.post("/api/programmes", json={"name": "Refit"}).json()
+
+    response = client.post(f"/api/programmes/{project['id']}/templates")
+
+    assert response.status_code == 201
+    created = response.json()
+    assert len(created) == 3
+    assert all(task["category"] == "PLANOGRAM" for task in created)
+    assert all(task["programme_id"] == project["id"] for task in created)
+
+
+def test_clone_template_route_missing_programme_returns_404(client):
+    response = client.post("/api/programmes/does-not-exist/templates")
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "NOT_FOUND"

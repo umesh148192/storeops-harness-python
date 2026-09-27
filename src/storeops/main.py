@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from storeops.activities import router as activities_router
+from storeops.activities.service import service as activities_service
 from storeops.alerts import router as alerts_router
 from storeops.alerts.service import service as alerts_service
 from storeops.programmes import router as programmes_router
@@ -40,3 +41,4 @@ app.include_router(reports_router)
 # direct service-to-service imports from activities/programmes.
 alerts_service.register_event_handlers(event_bus)
 reports_service.register_event_handlers(event_bus)
+activities_service.register_event_handlers(event_bus)

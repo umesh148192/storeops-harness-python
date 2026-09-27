@@ -94,3 +94,46 @@ def test_sla_check_route_reports_breached_task(client):
     payload = response.json()
     assert created["id"] in payload["breached"]
     assert payload["escalated"] == []
+
+
+def test_create_activity_with_department(client):
+    response = client.post(
+        "/api/activities", json={"title": "Reset endcap", "department": "Grocery"}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["department"] == "Grocery"
+
+
+def test_create_activity_without_department_defaults_to_none(client):
+    response = client.post("/api/activities", json={"title": "Reset endcap"})
+
+    assert response.status_code == 201
+    assert response.json()["department"] is None
+
+
+def test_patch_activity_updates_department_only(client):
+    created = client.post(
+        "/api/activities", json={"title": "Reset endcap", "department": "Grocery"}
+    ).json()
+
+    response = client.patch(
+        f"/api/activities/{created['id']}", json={"department": "Electronics"}
+    )
+
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["department"] == "Electronics"
+    assert updated["title"] == "Reset endcap"
+    assert updated["status"] == created["status"]
+
+
+def test_get_activity_includes_department(client):
+    created = client.post(
+        "/api/activities", json={"title": "Reset endcap", "department": "Grocery"}
+    ).json()
+
+    response = client.get(f"/api/activities/{created['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["department"] == "Grocery"

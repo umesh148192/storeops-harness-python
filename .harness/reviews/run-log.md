@@ -78,3 +78,25 @@ One entry per sprint, appended in completion order. Never overwritten.
 - **Escalation**: No.
 - **Estimated token cost**: small — 2 small edits (~6 lines net across `routes.py` and `main.py`) + one new test file with 3 tests (~40 lines); estimate based on diff size, not exact token count.
 - **Quality-trend notes**: Clean PASS on the single Generator-facing iteration, 100% weighted score, no AMBIGUOUS items. One self-caught-and-fixed test-authoring issue: the first draft of the router-wiring smoke test iterated `app.routes` and read `.path` off each entry, which raised `AttributeError` because this FastAPI/Starlette version wraps included routers in an object without a `.path` attribute; fixed by asserting against the more stable `app.openapi()["paths"]` instead. This is a new, distinct pattern from sprint-3.2's singleton-vs-local-`EventBus()` issue — no recurrence of that one this sprint, so no skill-file update triggered. **This completes all three sprints of the "Add regional rollup report" feature (3.1 → 3.2 → 3.3), each passing on the first iteration.**
+
+---
+
+## sprint-4.1 — activities: add `department` field to Task
+
+- **Goal**: Add `department: str | None = None` to `Task`/`TaskCreate`/`TaskUpdate`, the prerequisite the planogram template-cloning feature (sprint-4.2) needs to stamp a department onto each cloned task.
+- **Final verdict**: PASS
+- **Iterations used**: 1 (of 3)
+- **Escalation**: No.
+- **Estimated token cost**: small — single-file type change (~3 lines net) + one test file extension (~43 lines, 4 new tests); estimate based on diff size, not exact token count.
+- **Quality-trend notes**: Clean first-pass PASS, 100% weighted score, no AMBIGUOUS items. The sprint contract correctly predicted no `routes.py`/`service.py`/`repository.py` changes would be needed (all three layers are already generic over `Task`'s field set via `model_dump()`/`**fields`), and the Generator confirmed this held — the simplest, lowest-risk sprint in the run so far. First sprint of the new "Add planogram task template" feature (4.1 → 4.2).
+
+---
+
+## sprint-4.2 — programmes: POST /api/programmes/{project_id}/templates (planogram task template)
+
+- **Goal**: Add a fixed `PLANOGRAM` task template definition and `POST /api/programmes/{project_id}/templates`, cloning it into the target programme's activities.
+- **Final verdict**: PASS
+- **Iterations used**: 1 (of 3, after one implementation revision within the iteration — see notes)
+- **Escalation**: No.
+- **Estimated token cost**: medium — new event name (1 line) + `activities.service` subscriber (~10 lines) + `programmes.service` change (~35 lines net) + route change (~6 lines) + `main.py` wiring (~2 lines) + two test files (~64 lines, 6 new tests); estimate based on diff size, not exact token count.
+- **Quality-trend notes**: The first implementation attempt had `programmes.service` call `activities_service.create_activity` directly — a synchronous cross-module write outside the event bus. Review of that design surfaced an AMBIGUOUS Rule 2 (event-bus-only side effects) finding: not a clean PASS or FAIL, because the event bus's `emit()` is return-value-less and can't satisfy the feature's requirement to synchronously return created tasks in the HTTP response, and `architecture-principles.md` didn't disambiguate this specific case. Rather than weakening Rule 2 itself (rules are fixed, not subject to editing), the implementation was revised: the write now crosses the module boundary exclusively via `event_bus.emit(EventName.PLANOGRAM_TEMPLATE_CLONE_REQUESTED, ...)`, handled by a new `activities.service` subscriber (registered in `main.py` identically to the existing `alerts`/`reports` pattern); the created tasks are then fetched back via a direct **read** call (`activities_service.list_activities(...)`), which Rule 2 explicitly permits. Re-review confirmed all Dimension 1 items PASS with no ambiguity — **final verdict PASS at 100%**, no exception or clarification needed to any rule. The function-scoped import of `activities.service` in `programmes.service` (with `pylint` disable comments) is retained for the read-back call, still justified by the same circular-import risk (`activities.service` already imports `programmes.service` at module level). **This completes both sprints of the "Add planogram task template" feature (4.1 → 4.2)** — both passed cleanly with no AMBIGUOUS items in the final evaluation.
