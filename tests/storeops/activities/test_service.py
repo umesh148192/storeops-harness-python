@@ -58,3 +58,25 @@ def test_delete_activity_forbidden_for_non_owner_non_manager():
     task = service.create_activity(TaskCreate(title="Audit", assignee_id="someone-else"))
     with pytest.raises(ForbiddenError):
         service.delete_activity(task.id, ASSOCIATE)
+
+
+def test_bulk_update_status_updates_valid_tasks_and_records_audit_entries():
+    task_one = service.create_activity(TaskCreate(title="Restock freezer", assignee_id=ASSOCIATE.user_id))
+    task_two = service.create_activity(TaskCreate(title="Audit shelf labels", assignee_id=ASSOCIATE.user_id))
+    task_three = service.create_activity(TaskCreate(title="Open task", assignee_id="someone-else"))
+
+    result = service.bulk_update_status(
+        [
+            {"task_id": task_one.id, "status": TaskStatus.DONE, "note": "Completed"},
+            {"task_id": task_two.id, "status": TaskStatus.BLOCKED, "note": "Waiting on replacement"},
+            {"task_id": task_three.id, "status": TaskStatus.DONE, "note": "Forbidden"},
+            {"task_id": "missing-task", "status": TaskStatus.DONE, "note": "Missing"},
+        ],
+        ASSOCIATE,
+    )
+
+    assert {task.id for task in result.updated} == {task_one.id, task_two.id}
+    assert {failure.task_id for failure in result.failed} == {task_three.id, "missing-task"}
+    assert service.get_audit_entries(task_one.id)[0].new_status == TaskStatus.DONE
+    assert service.get_audit_entries(task_two.id)[0].new_status == TaskStatus.BLOCKED
+    assert service.get_audit_entries(task_three.id) == []

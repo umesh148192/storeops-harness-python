@@ -3,7 +3,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from storeops.activities.service import service
-from storeops.activities.types import Task, TaskCreate, TaskStatus, TaskUpdate
+from storeops.activities.types import (
+    BulkStatusUpdateRequest,
+    BulkStatusUpdateResponse,
+    Task,
+    TaskCreate,
+    TaskStatus,
+    TaskUpdate,
+)
 from storeops.shared.deps import UserContext, get_current_user
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
@@ -24,6 +31,13 @@ async def create_activity(data: TaskCreate) -> Task:
 @router.get("/{task_id}", response_model=Task)
 async def get_activity(task_id: str) -> Task:
     return service.get_activity(task_id)
+
+
+@router.patch("/bulk-status", response_model=BulkStatusUpdateResponse)
+async def bulk_update_status(
+    data: BulkStatusUpdateRequest, ctx: UserContext = Depends(get_current_user)
+) -> BulkStatusUpdateResponse:
+    return service.bulk_update_status(data.updates, ctx)
 
 
 @router.patch("/{task_id}", response_model=Task)
