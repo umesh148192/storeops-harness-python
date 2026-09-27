@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from storeops.activities.service import service
 from storeops.activities.types import TaskCreate, TaskPriority, TaskStatus, TaskUpdate
 from storeops.shared.deps import UserContext
 from storeops.shared.entities import StaffRole
-from storeops.shared.errors import ForbiddenError, NotFoundError
+from storeops.shared.errors import ForbiddenError, NotFoundError, ValidationError
 from storeops.shared.events import EventName, event_bus
 
 MANAGER = UserContext(user_id="manager-1", store_id="store-1", role=StaffRole.STORE_MANAGER)
@@ -80,3 +82,99 @@ def test_bulk_update_status_updates_valid_tasks_and_records_audit_entries():
     assert service.get_audit_entries(task_one.id)[0].new_status == TaskStatus.DONE
     assert service.get_audit_entries(task_two.id)[0].new_status == TaskStatus.BLOCKED
     assert service.get_audit_entries(task_three.id) == []
+
+
+def test_evaluate_sla_fires_breach_exactly_once_for_overdue_critical_task():
+    task = service.create_activity(
+        TaskCreate(
+            title="Overdue restock",
+            priority=TaskPriority.CRITICAL,
+            due_date=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+    )
+    received = []
+    event_bus.subscribe(EventName.SLA_BREACH, received.append)
+
+    first = service.evaluate_sla(grace_period_hours=24)
+    second = service.evaluate_sla(grace_period_hours=24)
+
+    assert first.breached == [task.id]
+    assert second.breached == []
+    assert len(received) == 1
+    assert received[0]["task_id"] == task.id
+
+
+def test_evaluate_sla_ignores_not_due_done_and_low_priority_tasks():
+    not_due = service.create_activity(
+        TaskCreate(
+            title="Future due date",
+            priority=TaskPriority.HIGH,
+            due_date=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+    )
+    already_done = service.create_activity(
+        TaskCreate(
+            title="Already resolved",
+            priority=TaskPriority.HIGH,
+            due_date=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+    )
+    service.update_activity(already_done.id, TaskUpdate(status=TaskStatus.DONE))
+    low_priority = service.create_activity(
+        TaskCreate(
+            title="Low priority overdue",
+            priority=TaskPriority.LOW,
+            due_date=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+    )
+
+    result = service.evaluate_sla(grace_period_hours=24)
+
+    assert not_due.id not in result.breached
+    assert already_done.id not in result.breached
+    assert low_priority.id not in result.breached
+    assert result.breached == []
+    assert result.escalated == []
+
+
+def test_evaluate_sla_escalates_exactly_once_after_grace_period_elapses():
+    task = service.create_activity(
+        TaskCreate(
+            title="Overdue restock",
+            priority=TaskPriority.CRITICAL,
+            due_date=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+    )
+
+    within_grace = service.evaluate_sla(grace_period_hours=24)
+    assert within_grace.breached == [task.id]
+    assert within_grace.escalated == []
+
+    past_grace_first = service.evaluate_sla(grace_period_hours=0)
+    assert past_grace_first.breached == []
+    assert past_grace_first.escalated == [task.id]
+
+    past_grace_second = service.evaluate_sla(grace_period_hours=0)
+    assert past_grace_second.escalated == []
+
+
+def test_evaluate_sla_stops_alerting_once_task_is_done():
+    task = service.create_activity(
+        TaskCreate(
+            title="Overdue restock",
+            priority=TaskPriority.CRITICAL,
+            due_date=datetime.now(timezone.utc) - timedelta(hours=1),
+        )
+    )
+    service.evaluate_sla(grace_period_hours=24)
+
+    service.update_activity(task.id, TaskUpdate(status=TaskStatus.DONE))
+    result = service.evaluate_sla(grace_period_hours=0)
+
+    assert result.breached == []
+    assert result.escalated == []
+
+
+def test_evaluate_sla_rejects_negative_grace_period():
+    with pytest.raises(ValidationError):
+        service.evaluate_sla(grace_period_hours=-1)

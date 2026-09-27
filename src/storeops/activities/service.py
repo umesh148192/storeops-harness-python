@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from storeops.activities.repository import ActivityRepository, repository
@@ -9,6 +9,7 @@ from storeops.activities.types import (
     BulkStatusFailure,
     BulkStatusUpdateItem,
     BulkStatusUpdateResponse,
+    SlaCheckResult,
     Task,
     TaskAuditEntry,
     TaskCreate,
@@ -19,8 +20,12 @@ from storeops.activities.types import (
 from storeops.programmes.service import service as programmes_service
 from storeops.shared.deps import UserContext
 from storeops.shared.entities import StaffRole
-from storeops.shared.errors import AppError, ForbiddenError, NotFoundError
+from storeops.shared.errors import AppError, ForbiddenError, NotFoundError, ValidationError
 from storeops.shared.events import EventName, event_bus
+
+DEFAULT_SLA_GRACE_PERIOD_HOURS = 24
+
+_SLA_ELIGIBLE_PRIORITIES = (TaskPriority.HIGH, TaskPriority.CRITICAL)
 
 
 class ActivityService:
@@ -123,6 +128,43 @@ class ActivityService:
             raise ForbiddenError("Only the assignee or a store manager may delete this activity")
 
         self._repo.delete(task_id)
+
+    def evaluate_sla(
+        self, grace_period_hours: int = DEFAULT_SLA_GRACE_PERIOD_HOURS
+    ) -> SlaCheckResult:
+        if grace_period_hours < 0:
+            raise ValidationError("grace_period_hours must not be negative")
+
+        now = datetime.now(timezone.utc)
+        grace_period = timedelta(hours=grace_period_hours)
+        breached: list[str] = []
+        escalated: list[str] = []
+
+        for task in self._repo.list():
+            if task.status == TaskStatus.DONE:
+                continue
+            if task.priority not in _SLA_ELIGIBLE_PRIORITIES:
+                continue
+            if task.due_date is None or task.due_date > now:
+                continue
+
+            payload = {
+                "task_id": task.id,
+                "assignee_id": task.assignee_id,
+                "programme_id": task.programme_id,
+            }
+
+            if not self._repo.has_sla_breached(task.id):
+                self._repo.mark_sla_breached(task.id)
+                event_bus.emit(EventName.SLA_BREACH, payload)
+                breached.append(task.id)
+
+            if now - task.due_date > grace_period and not self._repo.has_sla_escalated(task.id):
+                self._repo.mark_sla_escalated(task.id)
+                event_bus.emit(EventName.SLA_ESCALATION, payload)
+                escalated.append(task.id)
+
+        return SlaCheckResult(breached=breached, escalated=escalated)
 
 
 service = ActivityService(repository)

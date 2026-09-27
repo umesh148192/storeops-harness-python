@@ -37,6 +37,7 @@ class Task(BaseModel):
     category: TaskCategory = TaskCategory.GENERAL
     programme_id: str | None = None
     assignee_id: str | None = None
+    due_date: datetime | None = None
 
 
 class TaskCreate(BaseModel):
@@ -46,6 +47,7 @@ class TaskCreate(BaseModel):
     category: TaskCategory = TaskCategory.GENERAL
     programme_id: str | None = None
     assignee_id: str | None = None
+    due_date: datetime | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -53,6 +55,7 @@ class TaskUpdate(BaseModel):
     priority: TaskPriority | None = None
     category: TaskCategory | None = None
     assignee_id: str | None = None
+    due_date: datetime | None = None
 
 
 class BulkStatusUpdateItem(BaseModel):
@@ -83,3 +86,8 @@ class TaskAuditEntry(BaseModel):
 class BulkStatusUpdateResponse(BaseModel):
     updated: list[Task]
     failed: list[BulkStatusFailure]
+
+
+class SlaCheckResult(BaseModel):
+    breached: list[str]
+    escalated: list[str]

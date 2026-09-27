@@ -40,3 +40,29 @@ def test_update_and_delete():
 def test_update_missing_returns_none():
     repo = ActivityRepository()
     assert repo.update("missing", status=TaskStatus.DONE) is None
+
+
+def test_sla_breach_and_escalation_flags_default_false_and_can_be_marked():
+    repo = ActivityRepository()
+    created = repo.create(Task(id="", title="Overdue task"))
+
+    assert repo.has_sla_breached(created.id) is False
+    assert repo.has_sla_escalated(created.id) is False
+
+    repo.mark_sla_breached(created.id)
+    repo.mark_sla_escalated(created.id)
+
+    assert repo.has_sla_breached(created.id) is True
+    assert repo.has_sla_escalated(created.id) is True
+
+
+def test_delete_clears_sla_flags():
+    repo = ActivityRepository()
+    created = repo.create(Task(id="", title="Overdue task"))
+    repo.mark_sla_breached(created.id)
+    repo.mark_sla_escalated(created.id)
+
+    repo.delete(created.id)
+
+    assert repo.has_sla_breached(created.id) is False
+    assert repo.has_sla_escalated(created.id) is False

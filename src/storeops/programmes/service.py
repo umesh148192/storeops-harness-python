@@ -3,7 +3,13 @@ from __future__ import annotations
 from uuid import uuid4
 
 from storeops.programmes.repository import ProgrammeRepository, repository
-from storeops.programmes.types import Project, ProjectCreate, ProjectMember, ProjectMemberCreate
+from storeops.programmes.types import (
+    Project,
+    ProjectCreate,
+    ProjectMember,
+    ProjectMemberCreate,
+    ProjectRole,
+)
 from storeops.shared.errors import NotFoundError
 from storeops.staff.service import service as staff_service
 
@@ -31,6 +37,22 @@ class ProgrammeService:
 
         member = ProjectMember(id=str(uuid4()), project_id=project_id, **data.model_dump())
         return self._repo.add_member(member)
+
+    def list_department_leads(self, project_id: str) -> list[ProjectMember]:
+        self.get_programme(project_id)
+        return [
+            member
+            for member in self._repo.list_members(project_id)
+            if member.role == ProjectRole.DEPARTMENT_LEAD
+        ]
+
+    def list_store_managers(self, project_id: str) -> list[ProjectMember]:
+        self.get_programme(project_id)
+        return [
+            member
+            for member in self._repo.list_members(project_id)
+            if member.role == ProjectRole.STORE_MANAGER
+        ]
 
 
 service = ProgrammeService(repository)

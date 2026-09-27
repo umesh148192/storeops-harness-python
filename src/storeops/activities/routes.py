@@ -6,6 +6,7 @@ from storeops.activities.service import service
 from storeops.activities.types import (
     BulkStatusUpdateRequest,
     BulkStatusUpdateResponse,
+    SlaCheckResult,
     Task,
     TaskCreate,
     TaskStatus,
@@ -38,6 +39,11 @@ async def bulk_update_status(
     data: BulkStatusUpdateRequest, ctx: UserContext = Depends(get_current_user)
 ) -> BulkStatusUpdateResponse:
     return service.bulk_update_status(data.updates, ctx)
+
+
+@router.post("/sla-check", response_model=SlaCheckResult)
+async def check_sla(grace_period_hours: int = 24) -> SlaCheckResult:
+    return service.evaluate_sla(grace_period_hours=grace_period_hours)
 
 
 @router.patch("/{task_id}", response_model=Task)

@@ -9,6 +9,7 @@ EventHandler = Callable[[Any], None]
 
 class EventName(str, Enum):
     SLA_BREACH = "SLA_BREACH"
+    SLA_ESCALATION = "SLA_ESCALATION"
     PROGRAMME_CLOSED = "PROGRAMME_CLOSED"
 
 

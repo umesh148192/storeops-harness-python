@@ -10,10 +10,14 @@ class ActivityRepository:
     def __init__(self) -> None:
         self._tasks: dict[str, Task] = {}
         self._audit_entries: dict[str, list[TaskAuditEntry]] = {}
+        self._sla_breached: set[str] = set()
+        self._sla_escalated: set[str] = set()
 
     def reset(self) -> None:
         self._tasks.clear()
         self._audit_entries.clear()
+        self._sla_breached.clear()
+        self._sla_escalated.clear()
 
     def list(
         self, programme_id: str | None = None, status: TaskStatus | None = None
@@ -51,7 +55,21 @@ class ActivityRepository:
 
     def delete(self, task_id: str) -> bool:
         self._audit_entries.pop(task_id, None)
+        self._sla_breached.discard(task_id)
+        self._sla_escalated.discard(task_id)
         return self._tasks.pop(task_id, None) is not None
+
+    def has_sla_breached(self, task_id: str) -> bool:
+        return task_id in self._sla_breached
+
+    def mark_sla_breached(self, task_id: str) -> None:
+        self._sla_breached.add(task_id)
+
+    def has_sla_escalated(self, task_id: str) -> bool:
+        return task_id in self._sla_escalated
+
+    def mark_sla_escalated(self, task_id: str) -> None:
+        self._sla_escalated.add(task_id)
 
 
 repository = ActivityRepository()

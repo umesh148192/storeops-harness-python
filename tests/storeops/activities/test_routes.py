@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 
 def test_create_and_list_activities(client):
     response = client.post("/api/activities", json={"title": "Restock aisle 4"})
@@ -77,3 +79,18 @@ def test_bulk_status_route_updates_valid_tasks_and_reports_failures(client):
             app.dependency_overrides.clear()
         else:
             app.dependency_overrides[__import__("storeops.shared.deps", fromlist=["get_current_user"]).get_current_user] = original
+
+
+def test_sla_check_route_reports_breached_task(client):
+    due_date = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    created = client.post(
+        "/api/activities",
+        json={"title": "Overdue restock", "priority": "CRITICAL", "due_date": due_date},
+    ).json()
+
+    response = client.post("/api/activities/sla-check", params={"grace_period_hours": 24})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert created["id"] in payload["breached"]
+    assert payload["escalated"] == []
