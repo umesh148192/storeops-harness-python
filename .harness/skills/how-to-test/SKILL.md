@@ -36,7 +36,7 @@ with the real installed `storeops` package. Don't add `__init__.py` files back i
 
 ## Coverage
 
-Run `uv run pytest` (writes `.coverage`, enforces the 70% overall `--cov-fail-under` from
+Run `uv run python -m pytest` (writes `.coverage`, enforces the 70% overall `--cov-fail-under` from
 `pyproject.toml`), then `uv run python scripts/check_coverage.py` for the per-layer breakdown:
 service ≥80%, routes ≥70%, shared ≥60%, overall ≥70%. Both must pass before a sprint is
 Generator-complete.

@@ -21,7 +21,7 @@ hard gates, a checklist, and a stated handling of LLM output variability. Paired
 ## Dimension 2 — Correctness & Coverage (40%)
 
 **Hard gates**:
-- `uv run pytest` reports any failing test.
+- `uv run python -m pytest` reports any failing test.
 - `uv run python scripts/check_coverage.py` reports any layer below its Section#5 threshold
   (service 80%, routes 70%, shared 60%, overall 70%) for a layer the sprint touched.
 

@@ -25,7 +25,7 @@ initiatives), staff, alerts (notifications), reports (aggregated metrics).
 - **Deployment target**: AWS Elastic Beanstalk (Docker platform), single instance — see
   `terraform/` and `Dockerrun.aws.json`. In-memory storage means the app cannot scale to more than
   one instance without a real datastore; don't propose auto-scaling in a sprint contract.
-- **CI**: `.github/workflows/deploy.yml` runs `mypy`, `pylint`, `import-linter`, `pytest`, and the
+- **CI**: `.github/workflows/deploy.yml` runs `mypy`, `pylint`, `import-linter`, `python -m pytest`, and the
   per-layer coverage script on every push; deploys to Beanstalk on `main` if `AWS_DEPLOY_ROLE_ARN`
   is configured.
 

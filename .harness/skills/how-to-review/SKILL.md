@@ -10,7 +10,7 @@ verdict.
 uv run mypy src
 uv run pylint src
 uv run lint-imports
-uv run pytest
+uv run python -m pytest
 uv run python scripts/check_coverage.py
 ```
 

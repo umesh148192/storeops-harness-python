@@ -4,7 +4,7 @@ pytest-cov / coverage.py only support a single global --cov-fail-under. This
 script re-reports the same .coverage data (written by `pytest`) scoped to
 each architectural layer so the differentiated thresholds can be checked.
 
-Usage: uv run pytest && uv run python scripts/check_coverage.py
+Usage: uv run python -m pytest && uv run python scripts/check_coverage.py
 """
 
 from __future__ import annotations

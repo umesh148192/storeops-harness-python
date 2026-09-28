@@ -2,6 +2,11 @@
 
 Retail store operations REST API — stub scaffold.
 
+## GIT Repository
+```
+https://github.com/umesh148192/storeops-harness-python.git
+```
+
 ## Setup
 
 ```
@@ -11,7 +16,7 @@ uv sync
 ## Run
 
 ```
-uv run uvicorn storeops.main:app --reload
+uv run python -m uvicorn storeops.main:app --reload
 ```
 
 `/docs` lists the 9 live endpoints (activities, programmes, alerts). `staff` and `reports` have full
@@ -20,19 +25,22 @@ layer scaffolding but no live routes yet (auth and reports endpoints are out of 
 ## Test
 
 ```
-uv run pytest; uv run python scripts/check_coverage.py;
+- uv run python -m pytest; 
+- uv run python scripts/check_coverage.py;
 ```
 
 ## Lint / type-check / architecture
 
 ```
-uv run mypy src; uv run pylint src; uv run lint-imports;
+- uv run python -m mypy src; 
+- uv run python -m pylint src; 
+- uv run python -c "from importlinter.cli import lint_imports; raise SystemExit(lint_imports())";
 ```
 
 ## All checks (CI-equivalent)
 
 ```
-uv run mypy src; uv run pylint src; uv run lint-imports; uv run pytest; uv run python scripts/check_coverage.py;
+uv run python -m mypy src; uv run python -m pylint src; uv run python -c "from importlinter.cli import lint_imports; raise SystemExit(lint_imports())"; uv run python -m pytest; uv run python scripts/check_coverage.py;
 ```
 
 ## Local Docker
